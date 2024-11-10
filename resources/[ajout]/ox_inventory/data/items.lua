@@ -730,12 +730,21 @@ return {
 		close = false,
 	},
 
-	['canne'] = {
-		label = 'Canne à pêche',
-		weight = 100,
-		stack = false,
-	},
-
+    ['canne'] = {
+        label = 'Canne à pêche',
+        weight = 100,
+        stack = false,
+        buttons = {
+            {
+                label = 'Enlever le leurre',
+                action = function(slot)
+                    print("Leurre enlevé du slot:", slot)
+                    TriggerServerEvent('ox_peche:cannebutton', slot)                    
+                end,
+            },
+        },
+    },
+    
 	['epuisette'] = {
 		label = 'Epuisette',
 		weight = 100,
@@ -748,19 +757,19 @@ return {
 		stack = false,
 	},
 
-	['leurre'] = {
+	['leurre_cuivre'] = {
 		label = 'Leurre en cuivre',
 		weight = 100,
 		stack = true,
 	},
 
-	['leurre2'] = {
+	['leurre_fer'] = {
 		label = 'Leurre en fer',
 		weight = 100,
 		stack = true,
 	},
 
-	['leurre3'] = {
+	['leurre_titane'] = {
 		label = 'Leurre en titane',
 		weight = 100,
 		stack = true,
