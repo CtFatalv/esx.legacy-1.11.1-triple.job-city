@@ -1,13 +1,15 @@
 function HUD:Toggle(state)
-    SendNUIMessage({ type = 'SHOW', value = state })
+    SendNUIMessage({ type = "SHOW", value = state })
 end
 
 function HUD:SetHudColor()
-    SendNUIMessage({ type = 'SET_CONFIG_DATA', value = Config })
+    SendNUIMessage({ type = "SET_CONFIG_DATA", value = Config })
 end
 
 function HUD:Start(xPlayer)
-    if not xPlayer then xPlayer = ESX.GetPlayerData() end
+    if not xPlayer then
+        xPlayer = ESX.GetPlayerData()
+    end
     self:SetHudColor()
     self:SlowThick()
     self:FastThick()
@@ -27,22 +29,35 @@ function HUD:Start(xPlayer)
     self:Toggle(true)
 end
 
+local function ToggleHud(state)
+    HUD:Toggle(state)
+    HUD.Data.hudHidden = not state
+end
+
+RegisterNetEvent("esx_hud:HudToggle", ToggleHud)
+exports("HudToggle", ToggleHud)
+
 -- Handlers
-    -- On script start
-    AddEventHandler('onResourceStart', function(resource)
-        if GetCurrentResourceName() ~= resource then return end
-        Wait(1000)
-        HUD:Start()
-    end)
+-- On script start
+AddEventHandler("onResourceStart", function(resource)
+    if GetCurrentResourceName() ~= resource then
+        return
+    end
+    Wait(1000)
+    HUD:Start()
+end)
 
-    -- On player loaded
-    AddEventHandler('esx:playerLoaded', function(xPlayer)
-        Wait(1000)
-        HUD:Start(xPlayer)
-    end)
+-- On player loaded
+ESX.SecureNetEvent("esx:playerLoaded", function(xPlayer)
+    while IsScreenFadedOut() do
+        Wait(200)
+    end
 
-    -- ForceLog or Logout
-    AddEventHandler('esx:onPlayerLogout', function()
-        Wait(1000)
-        HUD:Toggle(false)
-    end)
+    HUD:Start(xPlayer)
+end)
+
+-- ForceLog or Logout
+ESX.SecureNetEvent("esx:onPlayerLogout", function()
+    Wait(1000)
+    HUD:Toggle(false)
+end)

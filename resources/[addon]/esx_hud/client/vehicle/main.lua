@@ -1,73 +1,72 @@
 local cruiseControlStatus = false
 local isPassenger = false
+local isSeatbeltOn = false
+local p = promise:new()
 
 local function SetCruiseControlState(state)
     cruiseControlStatus = state
 end
 
-exports('CruiseControlState', function(...)
-    SetCruiseControlState(...)
-end)
+local function SetSeatbeltState(state)
+    isSeatbeltOn = state
+end
+
+exports("CruiseControlState", SetCruiseControlState)
+exports("SeatbeltState", SetSeatbeltState)
 
 if not Config.Disable.Vehicle then
-    local inVehicle, vehicleType, playerPos = false, nil, nil
+    local vehicleType, playerPos
     local currentMileage = 0
 
     HUD.Data.Driver = false
 
     local values = {
         show = false,
-        defaultIndicators = {}
+        defaultIndicators = {},
     }
 
     local function driverCheck(currentVehicle)
-        if not DoesEntityExist(currentVehicle) then return false end
-        if GetPedInVehicleSeat(currentVehicle, -1) == PlayerPedId() then
-            return true
-        end
-        return false
+        return DoesEntityExist(currentVehicle) and (GetPedInVehicleSeat(currentVehicle, -1) == ESX.PlayerData.ped)
     end
 
-    local function driverCheckThread(currentVehicle)
-        CreateThread(function()
-            while inVehicle do
+    CreateThread(function()
+        while true do
+            local currentVehicle = Citizen.Await(p)
+            if currentVehicle then
                 HUD.Data.Driver = driverCheck(currentVehicle)
-                playerPos = GetEntityCoords(PlayerPedId()).xy
+                playerPos = GetEntityCoords(ESX.PlayerData.ped).xy
 
-                if not Config.Default.PassengerSpeedo and not HUD.Data.Driver then
-                    SendNUIMessage({ type = 'VEH_HUD', value = { show = false } })
-                    isPassenger = true
+                if not Config.Default.PassengerSpeedo then
+                    if HUD.Data.Driver then
+                        isPassenger = false
+                    else
+                        SendNUIMessage({ type = "VEH_HUD", value = { show = false } })
+                        isPassenger = true
+                    end
                 end
-                Wait(1000)
             end
-        end)
-    end
+            Wait(1000)
+        end
+    end)
 
-    local function slowInfoThread(currentVehicle)
-        CreateThread(function()
-            local oldPos = nil
-
-            while inVehicle and DoesEntityExist(currentVehicle) do
+    CreateThread(function()
+        local oldPos
+        while true do
+            local currentVehicle = Citizen.Await(p)
+            if currentVehicle and DoesEntityExist(currentVehicle) then
                 local engineHealth = math.floor(GetVehicleEngineHealth(currentVehicle) / 10)
                 local _, lowBeam, highBeam = GetVehicleLightsState(currentVehicle)
-                local lightState = false
                 local indicator = GetVehicleIndicatorLights(currentVehicle)
-                local indicatorLeft, indicatorRight = false, false
-                local doorLockStatus = false
                 local tempDoorLockStatus = GetVehicleDoorLockStatus(currentVehicle)
 
-                -- Make sure engine health not going to minus
-                if engineHealth < 0 then engineHealth = 0 end
+                if engineHealth < 0 then
+                    engineHealth = 0
+                end
 
-                -- Set light state
-                if lowBeam == 1 or highBeam == 1 then lightState = true end
-
-                -- Set indicator state
-                if indicator == 1 or indicator == 3 then indicatorLeft = true end
-                if indicator == 2 or indicator == 3 then indicatorRight = true end
-
-                -- Set lock state
-                if tempDoorLockStatus == 2 or tempDoorLockStatus == 3 then doorLockStatus = true end
+                local lightState = lowBeam == 1 or highBeam == 1
+                local indicatorLeft = indicator == 1 or indicator == 3
+                local indicatorRight = indicator == 2 or indicator == 3
+                local doorLockStatus = tempDoorLockStatus == 2 or tempDoorLockStatus == 3
 
                 if IsVehicleOnAllWheels(currentVehicle) then
                     if oldPos then
@@ -88,96 +87,99 @@ if not Config.Disable.Vehicle then
                 values.damage = engineHealth
                 values.vehType = vehicleType
                 values.driver = HUD.Data.Driver
+                values.defaultIndicators.seatbelt = isSeatbeltOn
                 values.defaultIndicators.tempomat = cruiseControlStatus
                 values.defaultIndicators.door = doorLockStatus
                 values.defaultIndicators.light = lightState
                 values.defaultIndicators.leftIndex = indicatorLeft
                 values.defaultIndicators.rightIndex = indicatorRight
-
-                Wait(200)
             end
-        end)
-    end
+            Wait(200)
+        end
+    end)
 
-    local function fastInfoThread(currentVehicle)
-        CreateThread(function()
-            while inVehicle do
+    CreateThread(function()
+        while true do
+            local currentVehicle = Citizen.Await(p)
+            if currentVehicle and DoesEntityExist(currentVehicle) then
                 local currentSpeed = GetEntitySpeed(currentVehicle)
                 local engineRunning = GetIsVehicleEngineRunning(currentVehicle)
                 local rpm
 
-                if vehicleType == 'LAND' then
+                if vehicleType == "LAND" or vehicleType == "MOTO" then
                     rpm = engineRunning and (GetVehicleCurrentRpm(currentVehicle) * 450) or 0
                 else
                     rpm = math.ceil(ESX.PlayerData.coords.z)
                 end
 
-                values.speed = Config.Default.Kmh and math.floor(currentSpeed * 3.6) or math.floor(currentSpeed * 2.236936)
+                values.speed = math.floor(currentSpeed * (Config.Default.Kmh and 3.6 or 2.236936))
                 values.rpm = rpm
                 values.defaultIndicators.engine = engineRunning
+
                 if not isPassenger then
-                    SendNUIMessage({ type = 'VEH_HUD', value = values })
+                    SendNUIMessage({ type = "VEH_HUD", value = values })
                 end
-                Wait(50)
             end
-        end)
-    end
+            Wait(50)
+        end
+    end)
 
-    local function activateVehicleHud(currentVehicle)
-        values.show = true
-        slowInfoThread(currentVehicle)
-        fastInfoThread(currentVehicle)
-    end
-
-    AddEventHandler('esx:enteredVehicle', function(currentVehicle, currentPlate, currentSeat, displayName, netId)
+    AddEventHandler("esx:enteredVehicle", function(currentVehicle, currentPlate, currentSeat, displayName, netId)
         local vehicleClass = GetVehicleClass(currentVehicle)
-        if vehicleClass == 13 then return end
+        if vehicleClass == 13 then
+            return
+        end
 
-        inVehicle = true
         HUD.Data.Driver = currentSeat == -1 or false
         HUD.Data.Vehicle = currentVehicle
-        vehicleType = (vehicleClass == 15 or vehicleClass == 16) and 'AIR' or 'LAND'
-        -- We have to check if he changed seat meantime
-        driverCheckThread(currentVehicle)
+        vehicleType = "LAND"
+
+        if vehicleClass == 15 or vehicleClass == 16 then
+            vehicleType = "AIR"
+        elseif vehicleClass == 8 then
+            vehicleType = "MOTO"
+        end
 
         if Config.Disable.MinimapOnFoot then
             DisplayRadar(true)
         end
 
-        activateVehicleHud(currentVehicle)
-
         if HUD.Data.Driver then
-            TriggerServerEvent('esx_hud:EnteredVehicle', currentPlate, Config.Default.Kmh)
+            TriggerServerEvent("esx_hud:EnteredVehicle", currentPlate, Config.Default.Kmh)
         end
+        values.show = true
+        p:resolve(currentVehicle)
     end)
 
-    AddEventHandler('esx:exitedVehicle', function(currentVehicle, currentPlate, currentSeat, displayName, netId)
-        inVehicle = false
+    AddEventHandler("esx:exitedVehicle", function(currentVehicle, currentPlate, currentSeat, displayName, netId)
+        p = promise:new()
         HUD.Data.Driver = false
         HUD.Data.Vehicle = nil
         vehicleType = nil
+
         values = {
             show = false,
-            defaultIndicators = {}
+            defaultIndicators = {},
         }
-        SendNUIMessage({ type = 'VEH_HUD', value = { show = false } })
+
+        SendNUIMessage({ type = "VEH_HUD", value = { show = false } })
 
         if Config.Disable.MinimapOnFoot then
             DisplayRadar(false)
         end
 
         if currentSeat == -1 then
-            TriggerServerEvent('esx_hud:ExitedVehicle', currentPlate, currentMileage, Config.Default.Kmh)
+            TriggerServerEvent("esx_hud:ExitedVehicle", currentPlate, currentMileage, Config.Default.Kmh)
         end
         currentMileage = 0
         isPassenger = false
     end)
 
-    RegisterNetEvent('esx_hud:UpdateMileage', function(mileage)
+    RegisterNetEvent("esx_hud:UpdateMileage", function(mileage)
         currentMileage = mileage
     end)
 
-    AddEventHandler('esx_hud:UnitChanged', function(state)
+    AddEventHandler("esx_hud:UnitChanged", function(state)
         if state then
             currentMileage = currentMileage * 1.61
         else
