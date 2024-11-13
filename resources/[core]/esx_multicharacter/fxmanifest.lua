@@ -1,26 +1,18 @@
 fx_version 'cerulean'
-
 game 'gta5'
 author 'ESX-Framework - Linden - KASH'
-description 'Allows players to have multiple characters on the same account.'
-version '1.10.9'
+description 'Official Multicharacter System For ESX Legacy'
+version '1.9.0'
 lua54 'yes'
 
-dependencies { 'es_extended', 'esx_context', 'esx_identity' }
+dependencies {'es_extended', 'esx_context'}
 
-shared_scripts { '@es_extended/imports.lua', '@es_extended/locale.lua', 'locales/*.lua', 'config.lua' }
+shared_scripts {'@es_extended/imports.lua', '@es_extended/locale.lua', 'locales/*.lua', 'config.lua'}
 
-server_scripts {
-    '@oxmysql/lib/MySQL.lua',
-    'server/*.lua',
-    'server/modules/*.lua'
-}
+server_scripts {'@oxmysql/lib/MySQL.lua', 'server/*.lua'}
 
-client_scripts {
-   "client/modules/*.lua",
-   'client/*.lua'
-}
+client_scripts {'client/*.lua'}
 
-ui_page { 'html/ui.html' }
+ui_page {'html/ui.html'}
 
-files { 'html/ui.html', 'html/css/main.css', 'html/js/app.js', 'html/locales/*.js' }
+files {'html/ui.html', 'html/css/main.css', 'html/js/app.js', 'html/locales/*.js'}
